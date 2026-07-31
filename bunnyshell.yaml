@@ -1,0 +1,22 @@
+kind: Environment
+name: youtube-live-backend
+type: primary
+components:
+  - name: backend
+    kind: Application
+    git:
+      url: '{{ primary.repository.url }}'
+      branch: '{{ primary.repository.branch }}'
+    build:
+      dockerfile: Dockerfile
+      context: .
+    hosts:
+      - hostname: 'youtube-live-backend-{{ env.unique }}.bunnyshell.com'
+        path: /
+        port: 10000
+    ports:
+      - '10000:10000'
+    environment:
+      PORT: '10000'
+      PYTHONUNBUFFERED: '1'
+      CORS_ORIGIN: '*'

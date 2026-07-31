@@ -1,0 +1,7 @@
+uploads/*
+!uploads/.gitkeep
+uploads/temp/*
+__pycache__/
+*.pyc
+.wrangler/
+.env
