@@ -1,22 +1,23 @@
 kind: Environment
-name: youtube-live-backend
+name: ytkk
 type: primary
 components:
-  - name: backend
-    kind: Application
-    git:
-      url: '{{ primary.repository.url }}'
-      branch: '{{ primary.repository.branch }}'
-    build:
-      dockerfile: Dockerfile
-      context: .
-    hosts:
-      - hostname: 'youtube-live-backend-{{ env.unique }}.bunnyshell.com'
-        path: /
-        port: 10000
-    ports:
-      - '10000:10000'
-    environment:
-      PORT: '10000'
-      PYTHONUNBUFFERED: '1'
-      CORS_ORIGIN: '*'
+    -
+        kind: Application
+        name: yt
+        gitRepo: 'https://github.com/haree322-lab/YT.git'
+        gitBranch: main
+        gitApplicationPath: /
+        resources:
+            cpu: '2'
+            memory: 4Gi
+        dockerCompose:
+            build:
+                context: ./
+                dockerfile: Dockerfile
+            ports:
+                - '10000:10000'
+            environment:
+                PORT: '10000'
+                PYTHONUNBUFFERED: '1'
+                CORS_ORIGIN: '*'
