@@ -46,6 +46,7 @@ class StreamManager:
         self.log_history = []
         self.stats = {"fps": 0, "bitrate": "0kbits/s", "time": "00:00:00", "speed": "0x"}
         self.error_message = None
+        self.concat_file_path = None
 
     def add_log(self, line):
         masked_line = sanitize_log_line(line, self.stream_key_raw if hasattr(self, 'stream_key_raw') else "")
@@ -87,7 +88,7 @@ class StreamManager:
         except Exception:
             pass
 
-    def start_stream(self, video_path, video_id, video_name, stream_key, mode="single", preset="720p60", audio_option="original"):
+    def start_stream(self, video_paths_list, video_names_list, stream_key, mode="single", preset="720p60", audio_option="original"):
         with self.lock:
             if self.process and self.process.poll() is None:
                 return False, "A live stream is already active!"
@@ -95,8 +96,12 @@ class StreamManager:
             if not os.path.exists(FFMPEG_PATH) and not shutil.which(FFMPEG_PATH):
                 return False, f"FFmpeg binary not found at {FFMPEG_PATH}"
 
-            if not os.path.exists(video_path):
-                return False, "Target video file does not exist"
+            if not video_paths_list:
+                return False, "No target videos selected for playlist"
+
+            for vpath in video_paths_list:
+                if not os.path.exists(vpath):
+                    return False, f"Video file not found: {os.path.basename(vpath)}"
 
             stream_key_clean = stream_key.strip()
             if not stream_key_clean or len(stream_key_clean) < 4:
@@ -104,8 +109,8 @@ class StreamManager:
 
             self.stream_key_raw = stream_key_clean
             self.stream_key_masked = mask_stream_key(stream_key_clean)
-            self.current_video_id = video_id
-            self.current_video_name = video_name
+            self.current_video_id = f"Playlist ({len(video_paths_list)} items)"
+            self.current_video_name = ", ".join(video_names_list[:2]) + (f" (+{len(video_names_list)-2} more)" if len(video_names_list) > 2 else "")
             self.mode = mode
             self.status = "STREAMING"
             self.start_time = time.time()
@@ -113,19 +118,29 @@ class StreamManager:
             self.log_history.clear()
             self.stats = {"fps": 0, "bitrate": "0kbits/s", "time": "00:00:00", "speed": "0x"}
 
-            # Use RTMPS over Port 443 to bypass firewall restrictions
+            # Build Concat Playlist file
+            playlist_id = str(uuid.uuid4())
+            self.concat_file_path = UPLOADS_DIR / f"concat_{playlist_id}.txt"
+            with open(self.concat_file_path, 'w', encoding='utf-8') as f:
+                for vpath in video_paths_list:
+                    # FFmpeg concat file format
+                    safe_path_str = str(Path(vpath).resolve()).replace('\\', '/')
+                    f.write(f"file '{safe_path_str}'\n")
+
             rtmps_url = f"rtmps://a.rtmp.youtube.com:443/live2/{stream_key_clean}"
 
             cmd = [
                 FFMPEG_PATH,
                 "-re",
+                "-f", "concat",
+                "-safe", "0",
                 "-loglevel", "info"
             ]
 
             if mode == "loop":
                 cmd.extend(["-stream_loop", "-1"])
 
-            cmd.extend(["-i", str(video_path)])
+            cmd.extend(["-i", str(self.concat_file_path)])
 
             cmd.extend([
                 "-flvflags", "no_duration_filesize",
@@ -180,8 +195,8 @@ class StreamManager:
                 rtmps_url
             ])
 
-            self.add_log(f"Starting YouTube Live Stream [{mode.upper()} MODE]...")
-            self.add_log(f"Video: {video_name} (ID: {video_id})")
+            self.add_log(f"Starting YouTube Live Playlist Stream [{mode.upper()} MODE]...")
+            self.add_log(f"Playlist: {len(video_paths_list)} videos ({self.current_video_name})")
             self.add_log(f"Target RTMPS: rtmps://a.rtmp.youtube.com:443/live2/{self.stream_key_masked}")
 
             try:
@@ -196,7 +211,7 @@ class StreamManager:
                 )
 
                 threading.Thread(target=self._monitor_output, daemon=True).start()
-                return True, "Stream started successfully!"
+                return True, f"Playlist stream ({len(video_paths_list)} videos) started successfully!"
             except Exception as e:
                 self.status = "ERROR"
                 self.error_message = str(e)
@@ -215,13 +230,20 @@ class StreamManager:
         proc.stdout.close()
         return_code = proc.wait()
 
+        # Clean up temp concat file
+        if self.concat_file_path and self.concat_file_path.exists():
+            try:
+                self.concat_file_path.unlink()
+            except Exception:
+                pass
+
         with self.lock:
             if self.status != "STOPPING":
                 if return_code == 0:
                     self.add_log("Stream finished naturally (Return Code 0).")
                     self.status = "IDLE"
                 else:
-                    self.add_log(f"Stream ended with code {return_code}. (Check stream key and audio settings if unexpected)")
+                    self.add_log(f"Stream ended with code {return_code}.")
                     self.status = "IDLE" if self.status != "ERROR" else "ERROR"
             else:
                 self.add_log("Stream stopped by user.")
@@ -471,28 +493,39 @@ def serve_video_file(video_id):
 @app.route('/api/stream/start', methods=['POST'])
 def start_stream():
     data = request.get_json() or {}
-    video_id = os.path.basename(data.get('video_id', ''))
     stream_key = data.get('stream_key', '').strip()
     mode = data.get('mode', 'single')
     preset = data.get('preset', '720p60')
     audio_option = data.get('audio', 'original')
 
-    if not video_id or not stream_key:
-        return jsonify({'error': 'Both video_id and stream_key are required.'}), 400
+    # Support single video_id OR list of video_ids (playlist)
+    video_ids = data.get('video_ids', [])
+    if not video_ids and data.get('video_id'):
+        video_ids = [data.get('video_id')]
 
-    meta_path = UPLOADS_DIR / f"{video_id}.json"
-    if not meta_path.exists():
-        return jsonify({'error': 'Selected video was not found.'}), 404
+    if not video_ids or not stream_key:
+        return jsonify({'error': 'At least one video selection and a stream_key are required.'}), 400
 
-    with open(meta_path, 'r') as f:
-        vmeta = json.load(f)
+    video_paths_list = []
+    video_names_list = []
 
-    video_path = UPLOADS_DIR / vmeta['filename']
+    for vid in video_ids:
+        safe_vid = os.path.basename(vid)
+        meta_path = UPLOADS_DIR / f"{safe_vid}.json"
+        if meta_path.exists():
+            with open(meta_path, 'r') as f:
+                vmeta = json.load(f)
+            vpath = UPLOADS_DIR / vmeta['filename']
+            if vpath.exists():
+                video_paths_list.append(vpath)
+                video_names_list.append(vmeta['name'])
+
+    if not video_paths_list:
+        return jsonify({'error': 'Selected video file(s) were not found on server.'}), 404
 
     success, msg = stream_mgr.start_stream(
-        video_path=video_path,
-        video_id=video_id,
-        video_name=vmeta['name'],
+        video_paths_list=video_paths_list,
+        video_names_list=video_names_list,
         stream_key=stream_key,
         mode=mode,
         preset=preset,
@@ -538,7 +571,7 @@ if __name__ == '__main__':
     host = os.environ.get('HOST', '0.0.0.0')
     port = int(os.environ.get('PORT', 5000))
     print(f"==========================================================")
-    print(f" YouTube Live Streaming Backend Server")
+    print(f" YouTube Live Streaming Backend Server (Playlist Engine)")
     print(f" Listening on http://{host}:{port}")
     print(f" FFmpeg path: {FFMPEG_PATH}")
     print(f"==========================================================")

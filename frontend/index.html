@@ -3,25 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>YouTube Live Stream Studio Pro (Cloudflare & Render)</title>
-    <!-- Google Fonts -->
+    <title>YouTube Live Stream Studio Pro - Playlist & 2GB Video Engine</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-    <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
 </head>
 <body class="dark-theme">
 
-    <!-- Top Navigation Bar -->
     <header class="app-header">
         <div class="header-container">
             <div class="brand">
                 <i class="fa-brands fa-youtube brand-icon"></i>
                 <div class="brand-text">
-                    <span class="brand-name">Stream Studio <span class="badge-pro">CLOUD</span></span>
-                    <span class="brand-sub">Cloudflare Pages + Render YouTube Streamer</span>
+                    <span class="brand-name">Stream Studio <span class="badge-pro">PLAYLIST PRO</span></span>
+                    <span class="brand-sub">Multi-Video YouTube Live Looper</span>
                 </div>
             </div>
 
@@ -35,24 +32,22 @@
                     <span id="navTimer">00:00:00</span>
                 </div>
                 <button id="btnSetupGuide" class="btn-secondary btn-sm">
-                    <i class="fa-solid fa-circle-question"></i> Setup Guide
+                    <i class="fa-solid fa-circle-question"></i> Guide
                 </button>
             </div>
         </div>
     </header>
 
-    <!-- Main App Container -->
     <main class="app-main">
 
-        <!-- RENDER BACKEND CONFIG BAR -->
         <div class="backend-config-bar glass-card">
             <div class="config-bar-inner">
                 <div class="config-bar-label">
                     <i class="fa-solid fa-server text-cyan"></i>
-                    <span>Render Backend URL:</span>
+                    <span>Backend URL:</span>
                 </div>
                 <div class="config-bar-input-wrapper">
-                    <input type="text" id="backendUrlInput" placeholder="https://your-backend.onrender.com" autocomplete="off">
+                    <input type="text" id="backendUrlInput" placeholder="http://129.159.224.103" autocomplete="off">
                     <button id="btnSaveBackendUrl" class="btn-primary btn-sm">Save & Connect</button>
                 </div>
                 <div id="backendConnStatus" class="conn-status-badge disconnected">
@@ -63,10 +58,8 @@
 
         <div class="grid-container">
 
-            <!-- LEFT COLUMN: Upload & Configuration -->
             <section class="column left-column">
 
-                <!-- CARD 1: Video Upload Zone (Up to 2GB) -->
                 <div class="card glass-card">
                     <div class="card-header">
                         <h2><i class="fa-solid fa-cloud-arrow-up"></i> Video Upload Center</h2>
@@ -74,20 +67,19 @@
                     </div>
 
                     <div id="dropZone" class="drop-zone">
-                        <input type="file" id="videoFileInput" accept=".mp4,.mkv,.mov,.avi,.webm" class="file-input-hidden">
+                        <input type="file" id="videoFileInput" accept=".mp4,.mkv,.mov,.avi,.webm" class="file-input-hidden" multiple>
                         <div class="drop-zone-content">
                             <div class="upload-icon-wrapper">
                                 <i class="fa-solid fa-film"></i>
                             </div>
-                            <h3>Drag & Drop video file here</h3>
+                            <h3>Drag & Drop video files here</h3>
                             <p class="drop-subtitle">Supports MP4, MKV, MOV, AVI, WEBM (Chunked 2GB Max)</p>
                             <button id="btnBrowse" class="btn-primary btn-md">
-                                <i class="fa-solid fa-folder-open"></i> Select Video File
+                                <i class="fa-solid fa-folder-open"></i> Select Video Files
                             </button>
                         </div>
                     </div>
 
-                    <!-- Upload Progress Panel -->
                     <div id="uploadProgressPanel" class="upload-progress-panel hidden">
                         <div class="progress-info-row">
                             <span id="uploadFileName" class="file-name-text">video.mp4</span>
@@ -103,24 +95,28 @@
                     </div>
                 </div>
 
-                <!-- CARD 2: Uploaded Videos Library -->
                 <div class="card glass-card">
                     <div class="card-header">
-                        <h2><i class="fa-solid fa-photo-film"></i> Available Videos</h2>
-                        <button id="btnRefreshVideos" class="btn-icon" title="Refresh Library">
-                            <i class="fa-solid fa-rotate"></i>
-                        </button>
+                        <h2>
+                            <i class="fa-solid fa-list-check"></i> Video Playlist Library 
+                            <span id="selectedCountBadge" class="badge-pro" style="background:#06B6D4; margin-left:8px;">0 Selected</span>
+                        </h2>
+                        <div class="library-header-actions">
+                            <button id="btnSelectAll" class="btn-secondary btn-sm" title="Select / Unselect All">Select All</button>
+                            <button id="btnRefreshVideos" class="btn-icon" title="Refresh Library">
+                                <i class="fa-solid fa-rotate"></i>
+                            </button>
+                        </div>
                     </div>
 
                     <div id="videoListContainer" class="video-list-container">
                         <div class="empty-state">
                             <i class="fa-solid fa-video-slash"></i>
-                            <p>No video files uploaded yet. Upload a video above to begin streaming!</p>
+                            <p>No video files uploaded yet. Upload videos above to begin building your live stream playlist!</p>
                         </div>
                     </div>
                 </div>
 
-                <!-- CARD 3: YouTube Live Stream Settings -->
                 <div class="card glass-card highlight-border">
                     <div class="card-header">
                         <h2><i class="fa-solid fa-sliders"></i> YouTube Broadcast Config</h2>
@@ -129,7 +125,7 @@
                     <div class="form-group">
                         <label for="streamKeyInput">
                             YouTube Stream Key <span class="required">*</span>
-                            <i class="fa-solid fa-shield-halved tooltip-icon" title="Stream key is kept private and never stored permanently."></i>
+                            <i class="fa-solid fa-shield-halved tooltip-icon" title="Stream key is kept private."></i>
                         </label>
                         <div class="input-with-icon">
                             <i class="fa-solid fa-key input-prefix"></i>
@@ -141,17 +137,16 @@
                         <span class="help-text">Found in YouTube Studio &gt; Go Live &gt; Stream Key</span>
                     </div>
 
-                    <!-- Playback Mode Switch (Single vs Loop) -->
                     <div class="form-group">
-                        <label>Playback Mode <span class="required">*</span></label>
+                        <label>Playlist Playback Mode <span class="required">*</span></label>
                         <div class="mode-selector">
                             <label class="mode-option selected" id="lblModeLoop">
                                 <input type="radio" name="playbackMode" value="loop" checked>
                                 <div class="mode-card">
                                     <i class="fa-solid fa-rotate-right mode-icon"></i>
                                     <div class="mode-info">
-                                        <span class="mode-title">Continuous Loop</span>
-                                        <span class="mode-desc">Plays video infinitely on YouTube Live 24/7</span>
+                                        <span class="mode-title">Continuous Playlist Loop</span>
+                                        <span class="mode-desc">Loops all selected playlist videos endlessly 24/7</span>
                                     </div>
                                 </div>
                             </label>
@@ -161,8 +156,8 @@
                                 <div class="mode-card">
                                     <i class="fa-solid fa-play mode-icon"></i>
                                     <div class="mode-info">
-                                        <span class="mode-title">Single Play</span>
-                                        <span class="mode-desc">Streams video once from start to finish</span>
+                                        <span class="mode-title">Single Playlist Cycle</span>
+                                        <span class="mode-desc">Streams all selected videos once in sequence</span>
                                     </div>
                                 </div>
                             </label>
@@ -175,21 +170,20 @@
                             <select id="presetSelect" class="form-control">
                                 <option value="720p60" selected>720p 60fps (Recommended)</option>
                                 <option value="1080p60">1080p 60fps (High Quality)</option>
-                                <option value="passthrough">Passthrough (Copy - Zero Transcode)</option>
+                                <option value="passthrough">Passthrough (Copy Mode)</option>
                             </select>
                         </div>
 
                         <div class="form-group col-half">
                             <label for="audioSelect">Audio Setting</label>
                             <select id="audioSelect" class="form-control">
-                                <option value="original" selected>Original Audio Track</option>
+                                <option value="original" selected>Original Video Audio</option>
                                 <option value="mute">Mute Stream Audio</option>
                                 <option value="silent">Generate Silent Audio Stream</option>
                             </select>
                         </div>
                     </div>
 
-                    <!-- Main Action Buttons -->
                     <div class="action-buttons-wrapper">
                         <button id="btnStartStream" class="btn-live-start">
                             <i class="fa-solid fa-tower-broadcast"></i> START YOUTUBE LIVE STREAM
@@ -203,10 +197,8 @@
 
             </section>
 
-            <!-- RIGHT COLUMN: Live Dashboard & Logs -->
             <section class="column right-column">
 
-                <!-- CARD 4: Live Stream Status & Metrics -->
                 <div class="card glass-card">
                     <div class="card-header">
                         <h2><i class="fa-solid fa-chart-line"></i> Live Broadcast Dashboard</h2>
@@ -235,7 +227,7 @@
                     <div class="preview-wrapper">
                         <div class="preview-header">
                             <span><i class="fa-solid fa-tv"></i> Active Source Preview</span>
-                            <span id="previewVideoName" class="preview-filename">No target video selected</span>
+                            <span id="previewVideoName" class="preview-filename">No video selected</span>
                         </div>
                         <div class="video-container">
                             <video id="sourceVideoPlayer" controls preload="metadata">
@@ -246,7 +238,6 @@
 
                 </div>
 
-                <!-- CARD 5: Real-Time FFmpeg Console Logs -->
                 <div class="card glass-card">
                     <div class="card-header">
                         <h2><i class="fa-solid fa-terminal"></i> RTMP Stream Logs & Output</h2>
@@ -261,11 +252,10 @@
                     </div>
 
                     <div id="logConsole" class="log-console">
-                        <div class="log-line info">[System] Stream Studio initialized. Waiting for Render connection...</div>
+                        <div class="log-line info">[System] Stream Studio initialized. Select videos to build playlist.</div>
                     </div>
                 </div>
 
-                <!-- CARD 6: YouTube Live Embed Preview -->
                 <div class="card glass-card">
                     <div class="card-header">
                         <h2><i class="fa-brands fa-youtube"></i> YouTube Live Channel Embed</h2>
@@ -292,30 +282,29 @@
         </div>
     </main>
 
-    <!-- MODAL: Deployment & Setup Guide -->
     <div id="guideModal" class="modal-backdrop hidden">
         <div class="modal-box glass-card">
             <div class="modal-header">
-                <h3><i class="fa-brands fa-youtube text-red"></i> Cloudflare Pages & Render Setup</h3>
+                <h3><i class="fa-brands fa-youtube text-red"></i> Multi-Video Playlist Instructions</h3>
                 <button id="btnCloseGuide" class="btn-close">&times;</button>
             </div>
             <div class="modal-body">
                 <ol class="guide-steps">
                     <li>
-                        <strong>Deploy Backend to Render.com</strong>
-                        <p>Push your repository to GitHub, link to Render.com as a <strong>Web Service</strong> (using Docker). Copy your backend URL (e.g. <code>https://youtube-live-backend.onrender.com</code>).</p>
+                        <strong>Upload Videos</strong>
+                        <p>Upload 1 or more videos (up to 2GB each).</p>
                     </li>
                     <li>
-                        <strong>Connect Backend URL</strong>
-                        <p>Paste your Render backend URL into the <strong>Render Backend URL</strong> field at the top of this web app and click <strong>Save & Connect</strong>.</p>
+                        <strong>Select Playlist Checkboxes</strong>
+                        <p>Check the boxes next to the videos you want in your live playlist.</p>
                     </li>
                     <li>
-                        <strong>Get YouTube Stream Key</strong>
-                        <p>Go to <a href="https://studio.youtube.com" target="_blank" rel="noopener">YouTube Studio</a> &gt; <strong>Create</strong> &gt; <strong>Go Live</strong>, copy your Stream Key.</p>
+                        <strong>Select Loop Mode</strong>
+                        <p>Select <strong>Continuous Playlist Loop</strong> to play all selected videos in sequence over and over 24/7.</p>
                     </li>
                     <li>
-                        <strong>Upload & Stream</strong>
-                        <p>Upload your video (up to 2GB), select <strong>Continuous Loop</strong> or <strong>Single Play</strong>, and hit <strong>START YOUTUBE LIVE STREAM</strong>!</p>
+                        <strong>Start Stream</strong>
+                        <p>Enter YouTube Stream Key and hit <strong>START YOUTUBE LIVE STREAM</strong>!</p>
                     </li>
                 </ol>
             </div>
@@ -325,7 +314,6 @@
         </div>
     </div>
 
-    <!-- App JavaScript -->
     <script src="app.js"></script>
 </body>
 </html>

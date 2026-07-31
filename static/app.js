@@ -1,8 +1,7 @@
-/* --- YOUTUBE LIVE STREAM STUDIO FRONTEND ENGINE --- */
+/* --- YOUTUBE LIVE STREAM STUDIO FRONTEND ENGINE (PLAYLIST PRO EDITION) --- */
 
 document.addEventListener('DOMContentLoaded', () => {
 
-    // --- DOM Elements ---
     const dropZone = document.getElementById('dropZone');
     const videoFileInput = document.getElementById('videoFileInput');
     const btnBrowse = document.getElementById('btnBrowse');
@@ -15,6 +14,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const videoListContainer = document.getElementById('videoListContainer');
     const btnRefreshVideos = document.getElementById('btnRefreshVideos');
+    const btnSelectAll = document.getElementById('btnSelectAll');
+    const selectedCountBadge = document.getElementById('selectedCountBadge');
 
     const streamKeyInput = document.getElementById('streamKeyInput');
     const btnToggleKeyVisibility = document.getElementById('btnToggleKeyVisibility');
@@ -51,8 +52,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnCloseGuide = document.getElementById('btnCloseGuide');
     const btnGotIt = document.getElementById('btnGotIt');
 
-    // State Variables
-    let selectedVideoId = null;
+    // --- State Variables ---
+    const backendUrl = window.location.origin;
+
+    let availableVideos = [];
+    let selectedVideoIds = [];
     let isUploading = false;
     let sseSource = null;
     let statusPollInterval = null;
@@ -66,7 +70,7 @@ document.addEventListener('DOMContentLoaded', () => {
     btnBrowse.addEventListener('click', () => videoFileInput.click());
     videoFileInput.addEventListener('change', (e) => {
         if (e.target.files.length > 0) {
-            handleFileUpload(e.target.files[0]);
+            handleMultipleUploads(Array.from(e.target.files));
         }
     });
 
@@ -81,33 +85,34 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
         dropZone.classList.remove('dragover');
         if (e.dataTransfer.files.length > 0) {
-            handleFileUpload(e.dataTransfer.files[0]);
+            handleMultipleUploads(Array.from(e.dataTransfer.files));
         }
     });
 
-    async function handleFileUpload(file) {
-        const MAX_SIZE = 2 * 1024 * 1024 * 1024; // 2GB
-        if (file.size > MAX_SIZE) {
-            alert('File exceeds 2GB maximum size limit.');
-            return;
+    async function handleMultipleUploads(files) {
+        for (let i = 0; i < files.length; i++) {
+            await handleFileUpload(files[i], i + 1, files.length);
         }
+        loadVideoLibrary();
+    }
 
-        if (isUploading) {
-            alert('An upload is currently in progress.');
+    async function handleFileUpload(file, fileNum = 1, totalFiles = 1) {
+        const MAX_SIZE = 2 * 1024 * 1024 * 1024;
+        if (file.size > MAX_SIZE) {
+            alert(`File "${file.name}" exceeds 2GB maximum size limit.`);
             return;
         }
 
         isUploading = true;
         uploadProgressPanel.classList.remove('hidden');
-        uploadFileName.textContent = file.name;
+        uploadFileName.textContent = `[${fileNum}/${totalFiles}] ${file.name}`;
         uploadPercent.textContent = '0%';
         uploadProgressBar.style.width = '0%';
-        uploadStatusText.textContent = 'Initializing chunked upload session...';
+        uploadStatusText.textContent = 'Initializing chunked upload...';
         uploadSpeedText.textContent = '0 MB/s';
 
         try {
-            // Step 1: Initialize Upload
-            const initRes = await fetch('/api/upload/init', {
+            const initRes = await fetch(`${backendUrl}/api/upload/init`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -129,7 +134,6 @@ document.addEventListener('DOMContentLoaded', () => {
             let startTime = Date.now();
             let uploadedBytes = 0;
 
-            // Step 2: Send Chunks sequentially
             for (let i = 0; i < totalChunks; i++) {
                 const start = i * chunkSize;
                 const end = Math.min(file.size, start + chunkSize);
@@ -140,7 +144,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 formData.append('chunk_index', i);
                 formData.append('file', chunkBlob);
 
-                const chunkRes = await fetch('/api/upload/chunk', {
+                const chunkRes = await fetch(`${backendUrl}/api/upload/chunk`, {
                     method: 'POST',
                     body: formData
                 });
@@ -152,7 +156,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 uploadedBytes += (end - start);
                 const progressPct = ((uploadedBytes / file.size) * 100).toFixed(1);
                 
-                // Speed Calculation
                 const elapsedSec = (Date.now() - startTime) / 1000;
                 const speedMBs = elapsedSec > 0 ? ((uploadedBytes / (1024 * 1024)) / elapsedSec).toFixed(2) : '0';
 
@@ -162,9 +165,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 uploadSpeedText.textContent = `${speedMBs} MB/s`;
             }
 
-            // Step 3: Complete Upload
-            uploadStatusText.textContent = 'Assembling chunks and validating file...';
-            const compRes = await fetch('/api/upload/complete', {
+            uploadStatusText.textContent = 'Validating & finalizing file...';
+            const compRes = await fetch(`${backendUrl}/api/upload/complete`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ upload_id: uploadId })
@@ -179,35 +181,60 @@ document.addEventListener('DOMContentLoaded', () => {
             uploadStatusText.textContent = 'Upload Completed!';
             appendLog(`[Upload] File "${file.name}" uploaded successfully!`, 'info');
 
-            setTimeout(() => {
-                uploadProgressPanel.classList.add('hidden');
-                isUploading = false;
-                loadVideoLibrary(compData.video.id);
-            }, 1000);
+            if (!selectedVideoIds.includes(compData.video.id)) {
+                selectedVideoIds.push(compData.video.id);
+            }
 
         } catch (err) {
-            alert(`Upload failed: ${err.message}`);
+            alert(`Upload failed for ${file.name}: ${err.message}`);
             uploadStatusText.textContent = 'Upload Failed';
-            isUploading = false;
             appendLog(`[Upload Error] ${err.message}`, 'error');
+        } finally {
+            if (fileNum === totalFiles) {
+                setTimeout(() => {
+                    uploadProgressPanel.classList.add('hidden');
+                    isUploading = false;
+                }, 1000);
+            }
         }
     }
 
     // --- VIDEO LIBRARY ---
     btnRefreshVideos.addEventListener('click', () => loadVideoLibrary());
 
-    async function loadVideoLibrary(autoSelectId = null) {
+    if (btnSelectAll) {
+        btnSelectAll.addEventListener('click', () => {
+            if (selectedVideoIds.length === availableVideos.length) {
+                selectedVideoIds = [];
+            } else {
+                selectedVideoIds = availableVideos.map(v => v.id);
+            }
+            renderVideoList(availableVideos);
+        });
+    }
+
+    async function loadVideoLibrary() {
         try {
-            const res = await fetch('/api/videos');
+            const res = await fetch(`${backendUrl}/api/videos`);
             const data = await res.json();
-            renderVideoList(data.videos || [], autoSelectId);
+            availableVideos = data.videos || [];
+            
+            if (selectedVideoIds.length === 0 && availableVideos.length > 0) {
+                selectedVideoIds = availableVideos.map(v => v.id);
+            }
+
+            renderVideoList(availableVideos);
         } catch (err) {
             console.error('Failed to load video library:', err);
         }
     }
 
-    function renderVideoList(videos, autoSelectId = null) {
+    function renderVideoList(videos) {
         videoListContainer.replaceChildren();
+
+        if (selectedCountBadge) {
+            selectedCountBadge.textContent = `${selectedVideoIds.length} Selected`;
+        }
 
         if (videos.length === 0) {
             const emptyDiv = document.createElement('div');
@@ -217,45 +244,47 @@ document.addEventListener('DOMContentLoaded', () => {
             icon.className = 'fa-solid fa-video-slash';
 
             const p = document.createElement('p');
-            p.textContent = 'No video files uploaded yet. Upload a video above to begin streaming!';
+            p.textContent = 'No video files uploaded yet. Upload videos above to begin building your live stream playlist!';
 
             emptyDiv.appendChild(icon);
             emptyDiv.appendChild(p);
             videoListContainer.appendChild(emptyDiv);
-            selectedVideoId = null;
-            previewVideoName.textContent = 'No target video selected';
+            selectedVideoIds = [];
+            previewVideoName.textContent = 'No video selected';
             sourceVideoPlayer.removeAttribute('src');
             return;
         }
 
-        videos.forEach((v, index) => {
+        videos.forEach((v) => {
             const item = document.createElement('div');
             item.className = 'video-item';
+            const isChecked = selectedVideoIds.includes(v.id);
+            if (isChecked) item.classList.add('selected');
 
             const leftDiv = document.createElement('div');
             leftDiv.className = 'video-item-left';
 
-            const radio = document.createElement('input');
-            radio.type = 'radio';
-            radio.name = 'selectedVideo';
-            radio.value = v.id;
-            radio.className = 'video-radio';
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.value = v.id;
+            checkbox.checked = isChecked;
+            checkbox.className = 'video-radio';
 
-            if ((autoSelectId && v.id === autoSelectId) || (!autoSelectId && index === 0 && !selectedVideoId)) {
-                radio.checked = true;
-                selectedVideoId = v.id;
-                selectVideoForStream(v);
-                item.classList.add('selected');
-            } else if (selectedVideoId === v.id) {
-                radio.checked = true;
-                item.classList.add('selected');
-            }
+            checkbox.addEventListener('change', (e) => {
+                e.stopPropagation();
+                if (checkbox.checked) {
+                    if (!selectedVideoIds.includes(v.id)) selectedVideoIds.push(v.id);
+                    item.classList.add('selected');
+                } else {
+                    selectedVideoIds = selectedVideoIds.filter(id => id !== v.id);
+                    item.classList.remove('selected');
+                }
+                updatePreviewAndBadge();
+            });
 
-            radio.addEventListener('change', () => {
-                document.querySelectorAll('.video-item').forEach(el => el.classList.remove('selected'));
-                item.classList.add('selected');
-                selectedVideoId = v.id;
-                selectVideoForStream(v);
+            item.addEventListener('click', () => {
+                checkbox.checked = !checkbox.checked;
+                checkbox.dispatchEvent(new Event('change'));
             });
 
             const icon = document.createElement('i');
@@ -275,7 +304,7 @@ document.addEventListener('DOMContentLoaded', () => {
             detailsDiv.appendChild(titleSpan);
             detailsDiv.appendChild(metaSpan);
 
-            leftDiv.appendChild(radio);
+            leftDiv.appendChild(checkbox);
             leftDiv.appendChild(icon);
             leftDiv.appendChild(detailsDiv);
 
@@ -298,18 +327,34 @@ document.addEventListener('DOMContentLoaded', () => {
             item.appendChild(btnDelete);
             videoListContainer.appendChild(item);
         });
+
+        updatePreviewAndBadge();
     }
 
-    function selectVideoForStream(v) {
-        previewVideoName.textContent = v.name;
-        sourceVideoPlayer.src = `/api/video/file/${v.id}`;
+    function updatePreviewAndBadge() {
+        if (selectedCountBadge) {
+            selectedCountBadge.textContent = `${selectedVideoIds.length} Selected`;
+        }
+
+        if (selectedVideoIds.length > 0) {
+            const firstSel = availableVideos.find(v => v.id === selectedVideoIds[0]);
+            if (firstSel) {
+                previewVideoName.textContent = selectedVideoIds.length === 1 
+                    ? firstSel.name 
+                    : `Playlist (${selectedVideoIds.length} videos starting with ${firstSel.name})`;
+                sourceVideoPlayer.src = `${backendUrl}/api/video/file/${firstSel.id}`;
+            }
+        } else {
+            previewVideoName.textContent = 'No videos selected for playlist';
+            sourceVideoPlayer.removeAttribute('src');
+        }
     }
 
     async function deleteVideo(id) {
         try {
-            const res = await fetch(`/api/videos/${id}`, { method: 'DELETE' });
+            const res = await fetch(`${backendUrl}/api/videos/${id}`, { method: 'DELETE' });
             if (res.ok) {
-                if (selectedVideoId === id) selectedVideoId = null;
+                selectedVideoIds = selectedVideoIds.filter(vid => vid !== id);
                 loadVideoLibrary();
             }
         } catch (err) {
@@ -332,8 +377,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- STREAM CONTROLS ---
     btnStartStream.addEventListener('click', async () => {
-        if (!selectedVideoId) {
-            alert('Please select a video from the library to stream.');
+        if (selectedVideoIds.length === 0) {
+            alert('Please select at least 1 video checkbox to build your stream playlist.');
             return;
         }
 
@@ -349,14 +394,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const audio = audioSelect.value;
 
         btnStartStream.disabled = true;
-        btnStartStream.textContent = 'STARTING STREAM...';
+        btnStartStream.textContent = 'STARTING PLAYLIST STREAM...';
 
         try {
-            const res = await fetch('/api/stream/start', {
+            const res = await fetch(`${backendUrl}/api/stream/start`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    video_id: selectedVideoId,
+                    video_ids: selectedVideoIds,
                     stream_key: streamKey,
                     mode: mode,
                     preset: preset,
@@ -379,7 +424,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } finally {
             btnStartStream.disabled = false;
             btnStartStream.replaceChildren();
-            
+
             const icon = document.createElement('i');
             icon.className = 'fa-solid fa-tower-broadcast';
             btnStartStream.appendChild(icon);
@@ -388,13 +433,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     btnStopStream.addEventListener('click', async () => {
-        if (!confirm('Are you sure you want to stop the YouTube Live stream?')) return;
+        if (!confirm('Are you sure you want to stop the YouTube Live playlist stream?')) return;
 
         btnStopStream.disabled = true;
         btnStopStream.textContent = 'STOPPING...';
 
         try {
-            const res = await fetch('/api/stream/stop', { method: 'POST' });
+            const res = await fetch(`${backendUrl}/api/stream/stop`, { method: 'POST' });
             const data = await res.json();
             appendLog(`[Stream] ${data.message}`, 'info');
         } catch (err) {
@@ -415,12 +460,13 @@ document.addEventListener('DOMContentLoaded', () => {
     function startStatusPolling() {
         statusPollInterval = setInterval(async () => {
             try {
-                const res = await fetch('/api/stream/status');
-                if (!res.ok) return;
-                const status = await res.json();
-                updateUIWithStatus(status);
+                const res = await fetch(`${backendUrl}/api/stream/status`);
+                if (res.ok) {
+                    const status = await res.json();
+                    updateUIWithStatus(status);
+                }
             } catch (err) {
-                // Ignore network hiccups
+                // Ignore transient network errors
             }
         }, 1500);
     }
@@ -472,7 +518,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- SSE LOG STREAM ---
     function initSSELogs() {
         if (sseSource) sseSource.close();
-        sseSource = new EventSource('/api/stream/logs');
+        sseSource = new EventSource(`${backendUrl}/api/stream/logs`);
 
         sseSource.onmessage = (event) => {
             try {
@@ -512,7 +558,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!inputVal) return;
 
         let videoId = inputVal;
-        // Extract video ID if full YouTube URL was pasted
         if (inputVal.includes('v=')) {
             videoId = inputVal.split('v=')[1].split('&')[0];
         } else if (inputVal.includes('youtu.be/')) {
