@@ -56,7 +56,7 @@ class StreamManager:
             self._parse_ffmpeg_stats(line)
 
         self.log_history.append(full_line)
-        if len(self.log_history) > 200:
+        if len(self.log_history) > 300:
             self.log_history.pop(0)
 
         dead_listeners = []
@@ -126,6 +126,12 @@ class StreamManager:
 
             cmd.extend(["-i", str(video_path)])
 
+            # Robust FLV and Muxing flags for YouTube RTMP
+            cmd.extend([
+                "-flvflags", "no_duration_filesize",
+                "-max_muxing_queue_size", "1024"
+            ])
+
             if preset == "1080p60":
                 cmd.extend([
                     "-c:v", "libx264",
@@ -133,7 +139,7 @@ class StreamManager:
                     "-b:v", "6000k",
                     "-maxrate", "6000k",
                     "-bufsize", "12000k",
-                    "-vf", "scale=1920:1080",
+                    "-vf", "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2",
                     "-r", "60",
                     "-g", "120",
                     "-pix_fmt", "yuv420p"
@@ -142,14 +148,14 @@ class StreamManager:
                 cmd.extend([
                     "-c:v", "copy"
                 ])
-            else:
+            else: # Default 720p60
                 cmd.extend([
                     "-c:v", "libx264",
                     "-preset", "veryfast",
                     "-b:v", "4000k",
                     "-maxrate", "4000k",
                     "-bufsize", "8000k",
-                    "-vf", "scale=1280:720",
+                    "-vf", "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2",
                     "-r", "60",
                     "-g", "120",
                     "-pix_fmt", "yuv420p"
@@ -215,7 +221,7 @@ class StreamManager:
                     self.add_log("Stream finished naturally (Return Code 0).")
                     self.status = "IDLE"
                 else:
-                    self.add_log(f"Stream ended with code {return_code}.")
+                    self.add_log(f"Stream ended with code {return_code}. (Check stream key and audio settings if unexpected)")
                     self.status = "IDLE" if self.status != "ERROR" else "ERROR"
             else:
                 self.add_log("Stream stopped by user.")
