@@ -113,7 +113,8 @@ class StreamManager:
             self.log_history.clear()
             self.stats = {"fps": 0, "bitrate": "0kbits/s", "time": "00:00:00", "speed": "0x"}
 
-            rtmp_url = f"rtmp://a.rtmp.youtube.com/live2/{stream_key_clean}"
+            # Use RTMPS over Port 443 to bypass firewall restrictions
+            rtmps_url = f"rtmps://a.rtmp.youtube.com:443/live2/{stream_key_clean}"
 
             cmd = [
                 FFMPEG_PATH,
@@ -126,7 +127,6 @@ class StreamManager:
 
             cmd.extend(["-i", str(video_path)])
 
-            # Robust FLV and Muxing flags for YouTube RTMP
             cmd.extend([
                 "-flvflags", "no_duration_filesize",
                 "-max_muxing_queue_size", "1024"
@@ -177,12 +177,12 @@ class StreamManager:
 
             cmd.extend([
                 "-f", "flv",
-                rtmp_url
+                rtmps_url
             ])
 
             self.add_log(f"Starting YouTube Live Stream [{mode.upper()} MODE]...")
             self.add_log(f"Video: {video_name} (ID: {video_id})")
-            self.add_log(f"Target RTMP: rtmp://a.rtmp.youtube.com/live2/{self.stream_key_masked}")
+            self.add_log(f"Target RTMPS: rtmps://a.rtmp.youtube.com:443/live2/{self.stream_key_masked}")
 
             try:
                 creation_flags = subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
