@@ -57,7 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnGotIt = document.getElementById('btnGotIt');
 
     // --- State Variables ---
-    let backendUrl = localStorage.getItem('renderBackendUrl') || 'https://service-name-j6ofxq.bunnyenv.com';
+    let backendUrl = localStorage.getItem('renderBackendUrl') || 'https://eden-assignments-periods-contributions.trycloudflare.com';
     backendUrl = backendUrl.replace(/\/+$/, '');
     if (!backendUrl.startsWith('http')) backendUrl = 'http://' + backendUrl;
 
@@ -83,7 +83,7 @@ document.addEventListener('DOMContentLoaded', () => {
             backendUrlInput.value = backendUrl;
             localStorage.setItem('renderBackendUrl', backendUrl);
             appendLog(`[Config] Saved Backend URL: ${backendUrl}`, 'info');
-            
+
             checkBackendConnection();
             loadVideoLibrary();
             initSSELogs();
@@ -201,7 +201,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 uploadedBytes += (end - start);
                 const progressPct = ((uploadedBytes / file.size) * 100).toFixed(1);
-                
+
                 const elapsedSec = (Date.now() - startTime) / 1000;
                 const speedMBs = elapsedSec > 0 ? ((uploadedBytes / (1024 * 1024)) / elapsedSec).toFixed(2) : '0';
 
@@ -264,7 +264,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = await fetch(`${backendUrl}/api/videos`);
             const data = await res.json();
             availableVideos = data.videos || [];
-            
+
             // Default select all videos if none selected yet
             if (selectedVideoIds.length === 0 && availableVideos.length > 0) {
                 selectedVideoIds = availableVideos.map(v => v.id);
@@ -386,8 +386,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (selectedVideoIds.length > 0) {
             const firstSel = availableVideos.find(v => v.id === selectedVideoIds[0]);
             if (firstSel) {
-                previewVideoName.textContent = selectedVideoIds.length === 1 
-                    ? firstSel.name 
+                previewVideoName.textContent = selectedVideoIds.length === 1
+                    ? firstSel.name
                     : `Playlist (${selectedVideoIds.length} videos starting with ${firstSel.name})`;
                 sourceVideoPlayer.src = `${backendUrl}/api/video/file/${firstSel.id}`;
             }
