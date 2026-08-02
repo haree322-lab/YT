@@ -464,54 +464,138 @@ def upload_complete():
         'video': video_meta
     })
 
+def resolve_video_info(vid_ref):
+    """
+    Resolves a video reference (ID, filename, original name, or raw file path)
+    to a tuple of (video_path, video_name). Returns (None, None) if not found.
+    """
+    if not vid_ref:
+        return None, None
+
+    vid_ref = str(vid_ref).strip()
+    safe_ref = os.path.basename(vid_ref)
+
+    # 1. Direct metadata lookup by ID (safe_ref.json)
+    meta_path = UPLOADS_DIR / f"{safe_ref}.json"
+    if meta_path.exists():
+        try:
+            with open(meta_path, 'r', encoding='utf-8') as f:
+                vmeta = json.load(f)
+            vpath = UPLOADS_DIR / vmeta.get('filename', '')
+            if vpath.exists():
+                return vpath, vmeta.get('name', safe_ref)
+        except Exception:
+            pass
+
+    # 2. Check if safe_ref is directly a video file in UPLOADS_DIR
+    vpath_direct = UPLOADS_DIR / safe_ref
+    if vpath_direct.exists() and vpath_direct.is_file() and vpath_direct.suffix.lower() in ALLOWED_EXTENSIONS:
+        return vpath_direct, safe_ref
+
+    # 3. Search all .json metadata files in UPLOADS_DIR for matching id, filename, or name
+    for mfile in UPLOADS_DIR.glob("*.json"):
+        if mfile.name == "telegram_config.json":
+            continue
+        try:
+            with open(mfile, 'r', encoding='utf-8') as f:
+                vmeta = json.load(f)
+            if (vmeta.get('id') == safe_ref or 
+                vmeta.get('filename') == safe_ref or 
+                vmeta.get('name') == safe_ref or 
+                vmeta.get('id') == os.path.splitext(safe_ref)[0]):
+                vpath = UPLOADS_DIR / vmeta.get('filename', '')
+                if vpath.exists():
+                    return vpath, vmeta.get('name', safe_ref)
+        except Exception:
+            pass
+
+    # 4. Search files in UPLOADS_DIR for case-insensitive match or match by stem
+    for vfile in UPLOADS_DIR.glob("*"):
+        if vfile.is_file() and vfile.suffix.lower() in ALLOWED_EXTENSIONS:
+            if vfile.name.lower() == safe_ref.lower() or vfile.stem.lower() == safe_ref.lower():
+                return vfile, vfile.name
+
+    return None, None
+
 @app.route('/api/videos', methods=['GET'])
 def list_videos():
     videos = []
+    seen_files = set()
+    seen_ids = set()
+
     for meta_file in UPLOADS_DIR.glob("*.json"):
+        if meta_file.name == "telegram_config.json":
+            continue
         try:
-            with open(meta_file, 'r') as f:
+            with open(meta_file, 'r', encoding='utf-8') as f:
                 vmeta = json.load(f)
-                video_file = UPLOADS_DIR / vmeta['filename']
+                video_file = UPLOADS_DIR / vmeta.get('filename', '')
                 if video_file.exists():
-                    vmeta['size_mb'] = round(vmeta['size'] / (1024 * 1024), 2)
+                    vmeta['size_mb'] = round(vmeta.get('size', video_file.stat().st_size) / (1024 * 1024), 2)
                     videos.append(vmeta)
+                    seen_files.add(video_file.name)
+                    seen_ids.add(vmeta.get('id'))
         except Exception:
             pass
+
+    # Auto-discover loose video files in UPLOADS_DIR that miss a .json metadata file
+    for vfile in UPLOADS_DIR.glob("*"):
+        if vfile.is_file() and vfile.suffix.lower() in ALLOWED_EXTENSIONS:
+            if vfile.name not in seen_files:
+                vid = vfile.stem
+                if vid in seen_ids:
+                    vid = str(uuid.uuid4())
+                meta = {
+                    'id': vid,
+                    'name': vfile.name,
+                    'filename': vfile.name,
+                    'size': vfile.stat().st_size,
+                    'size_mb': round(vfile.stat().st_size / (1024 * 1024), 2),
+                    'created_at': vfile.stat().st_mtime
+                }
+                try:
+                    with open(UPLOADS_DIR / f"{vid}.json", 'w', encoding='utf-8') as f:
+                        json.dump(meta, f)
+                except Exception:
+                    pass
+                videos.append(meta)
 
     videos.sort(key=lambda x: x.get('created_at', 0), reverse=True)
     return jsonify({'videos': videos})
 
 @app.route('/api/videos/<video_id>', methods=['DELETE'])
 def delete_video(video_id):
+    vpath, _ = resolve_video_info(video_id)
     safe_id = os.path.basename(video_id)
     meta_path = UPLOADS_DIR / f"{safe_id}.json"
 
-    if not meta_path.exists():
-        return jsonify({'error': 'Video metadata not found.'}), 404
+    deleted = False
+    if meta_path.exists():
+        try:
+            meta_path.unlink()
+            deleted = True
+        except Exception:
+            pass
 
-    try:
-        with open(meta_path, 'r') as f:
-            vmeta = json.load(f)
+    if vpath and vpath.exists():
+        try:
+            vpath.unlink()
+            deleted = True
+        except Exception:
+            pass
 
-        vfile = UPLOADS_DIR / vmeta['filename']
-        if vfile.exists():
-            vfile.unlink()
-        meta_path.unlink()
-        return jsonify({'status': 'deleted', 'id': safe_id})
-    except Exception as e:
-        return jsonify({'error': f'Failed to delete video: {e}'}), 500
+    if not deleted:
+        return jsonify({'error': 'Video file or metadata not found.'}), 404
+
+    return jsonify({'status': 'deleted', 'id': safe_id})
 
 @app.route('/api/video/file/<video_id>', methods=['GET'])
 def serve_video_file(video_id):
-    safe_id = os.path.basename(video_id)
-    meta_path = UPLOADS_DIR / f"{safe_id}.json"
-    if not meta_path.exists():
+    vpath, _ = resolve_video_info(video_id)
+    if not vpath or not vpath.exists():
         return jsonify({'error': 'Video not found'}), 404
 
-    with open(meta_path, 'r') as f:
-        vmeta = json.load(f)
-
-    return send_from_directory(UPLOADS_DIR, vmeta['filename'])
+    return send_from_directory(UPLOADS_DIR, vpath.name)
 
 @app.route('/api/stream/start', methods=['POST'])
 def start_stream():
@@ -521,10 +605,16 @@ def start_stream():
     preset = data.get('preset', '720p60')
     audio_option = data.get('audio', 'original')
 
-    # Support single video_id OR list of video_ids (playlist)
-    video_ids = data.get('video_ids', [])
+    # Support single video_id OR list of video_ids (playlist) or string video_ids
+    video_ids = data.get('video_ids')
+    if isinstance(video_ids, str):
+        video_ids = [video_ids]
+    elif not isinstance(video_ids, list):
+        video_ids = []
+
     if not video_ids and data.get('video_id'):
-        video_ids = [data.get('video_id')]
+        raw_vid = data.get('video_id')
+        video_ids = [raw_vid] if isinstance(raw_vid, str) else list(raw_vid)
 
     if not video_ids or not stream_key:
         return jsonify({'error': 'At least one video selection and a stream_key are required.'}), 400
@@ -533,15 +623,37 @@ def start_stream():
     video_names_list = []
 
     for vid in video_ids:
-        safe_vid = os.path.basename(vid)
-        meta_path = UPLOADS_DIR / f"{safe_vid}.json"
-        if meta_path.exists():
-            with open(meta_path, 'r') as f:
-                vmeta = json.load(f)
-            vpath = UPLOADS_DIR / vmeta['filename']
-            if vpath.exists():
+        vpath, vname = resolve_video_info(vid)
+        if vpath and vpath.exists():
+            if vpath not in video_paths_list:
                 video_paths_list.append(vpath)
-                video_names_list.append(vmeta['name'])
+                video_names_list.append(vname)
+
+    # Graceful fallback: if selected IDs are stale/missing but video files exist on server
+    if not video_paths_list:
+        all_videos = []
+        for mfile in UPLOADS_DIR.glob("*.json"):
+            if mfile.name == "telegram_config.json":
+                continue
+            try:
+                with open(mfile, 'r', encoding='utf-8') as f:
+                    vmeta = json.load(f)
+                vp = UPLOADS_DIR / vmeta.get('filename', '')
+                if vp.exists():
+                    all_videos.append((vmeta.get('created_at', 0), vp, vmeta.get('name', vp.name)))
+            except Exception:
+                pass
+        
+        if not all_videos:
+            for vfile in UPLOADS_DIR.glob("*"):
+                if vfile.is_file() and vfile.suffix.lower() in ALLOWED_EXTENSIONS:
+                    all_videos.append((vfile.stat().st_mtime, vfile, vfile.name))
+
+        if all_videos:
+            all_videos.sort(key=lambda x: x[0], reverse=True)
+            fb_vpath, fb_vname = all_videos[0][1], all_videos[0][2]
+            video_paths_list.append(fb_vpath)
+            video_names_list.append(fb_vname)
 
     if not video_paths_list:
         return jsonify({'error': 'Selected video file(s) were not found on server.'}), 404

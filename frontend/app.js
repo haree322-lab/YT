@@ -272,6 +272,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await res.json();
             availableVideos = data.videos || [];
 
+            const validAvailableIds = new Set(availableVideos.map(v => v.id));
+
+            // Prune selectedVideoIds so it only contains IDs that actually exist on server
+            selectedVideoIds = selectedVideoIds.filter(id => validAvailableIds.has(id));
+
             // Default select all videos if none selected yet
             if (selectedVideoIds.length === 0 && availableVideos.length > 0) {
                 selectedVideoIds = availableVideos.map(v => v.id);
@@ -431,6 +436,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- STREAM CONTROLS ---
     btnStartStream.addEventListener('click', async () => {
+        // Sync with backend to ensure selectedVideoIds contains active videos on server
+        await loadVideoLibrary();
+
         if (selectedVideoIds.length === 0) {
             alert('Please select at least 1 video checkbox to build your stream playlist.');
             return;

@@ -2,6 +2,10 @@
 
 document.addEventListener('DOMContentLoaded', () => {
 
+    const backendUrlInput = document.getElementById('backendUrlInput');
+    const btnSaveBackendUrl = document.getElementById('btnSaveBackendUrl');
+    const backendConnStatus = document.getElementById('backendConnStatus');
+
     const dropZone = document.getElementById('dropZone');
     const videoFileInput = document.getElementById('videoFileInput');
     const btnBrowse = document.getElementById('btnBrowse');
@@ -53,7 +57,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnGotIt = document.getElementById('btnGotIt');
 
     // --- State Variables ---
-    const backendUrl = window.location.origin;
+    let backendUrl = localStorage.getItem('renderBackendUrl');
+    if (!backendUrl) {
+        if (window.location.origin && window.location.origin.startsWith('http')) {
+            backendUrl = window.location.origin;
+        } else {
+            backendUrl = 'https://signature-compliance-occasions-lucky.trycloudflare.com';
+        }
+    }
+    backendUrl = backendUrl.replace(/\/+$/, '');
+    if (!backendUrl.startsWith('http')) backendUrl = 'http://' + backendUrl;
+
+    if (backendUrlInput) backendUrlInput.value = backendUrl;
 
     let availableVideos = [];
     let selectedVideoIds = [];
@@ -61,7 +76,45 @@ document.addEventListener('DOMContentLoaded', () => {
     let sseSource = null;
     let statusPollInterval = null;
 
+    if (btnSaveBackendUrl) {
+        btnSaveBackendUrl.addEventListener('click', () => {
+            let val = backendUrlInput.value.trim().replace(/\/+$/, '');
+            if (!val) {
+                alert('Please enter your Backend URL.');
+                return;
+            }
+            if (!val.startsWith('http://') && !val.startsWith('https://')) {
+                val = 'http://' + val;
+            }
+            backendUrl = val;
+            backendUrlInput.value = backendUrl;
+            localStorage.setItem('renderBackendUrl', backendUrl);
+            appendLog(`[Config] Saved Backend URL: ${backendUrl}`, 'info');
+
+            checkBackendConnection();
+            loadVideoLibrary();
+            initSSELogs();
+        });
+    }
+
+    async function checkBackendConnection() {
+        if (!backendConnStatus) return;
+        try {
+            const res = await fetch(`${backendUrl}/api/stream/status`);
+            if (res.ok) {
+                backendConnStatus.className = 'conn-status-badge connected';
+                backendConnStatus.innerHTML = '<i class="fa-solid fa-circle-check"></i> Connected';
+            } else {
+                throw new Error('Non-200 status');
+            }
+        } catch (err) {
+            backendConnStatus.className = 'conn-status-badge disconnected';
+            backendConnStatus.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> Disconnected';
+        }
+    }
+
     // --- INITIALIZATION ---
+    checkBackendConnection();
     loadVideoLibrary();
     initSSELogs();
     startStatusPolling();
@@ -155,7 +208,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 uploadedBytes += (end - start);
                 const progressPct = ((uploadedBytes / file.size) * 100).toFixed(1);
-                
+
                 const elapsedSec = (Date.now() - startTime) / 1000;
                 const speedMBs = elapsedSec > 0 ? ((uploadedBytes / (1024 * 1024)) / elapsedSec).toFixed(2) : '0';
 
@@ -218,7 +271,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = await fetch(`${backendUrl}/api/videos`);
             const data = await res.json();
             availableVideos = data.videos || [];
-            
+
+            const validAvailableIds = new Set(availableVideos.map(v => v.id));
+
+            // Prune selectedVideoIds so it only contains IDs that actually exist on server
+            selectedVideoIds = selectedVideoIds.filter(id => validAvailableIds.has(id));
+
+            // Default select all videos if none selected yet
             if (selectedVideoIds.length === 0 && availableVideos.length > 0) {
                 selectedVideoIds = availableVideos.map(v => v.id);
             }
@@ -339,8 +398,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (selectedVideoIds.length > 0) {
             const firstSel = availableVideos.find(v => v.id === selectedVideoIds[0]);
             if (firstSel) {
-                previewVideoName.textContent = selectedVideoIds.length === 1 
-                    ? firstSel.name 
+                previewVideoName.textContent = selectedVideoIds.length === 1
+                    ? firstSel.name
                     : `Playlist (${selectedVideoIds.length} videos starting with ${firstSel.name})`;
                 sourceVideoPlayer.src = `${backendUrl}/api/video/file/${firstSel.id}`;
             }
@@ -377,6 +436,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- STREAM CONTROLS ---
     btnStartStream.addEventListener('click', async () => {
+        // Sync with backend to ensure selectedVideoIds contains active videos on server
+        await loadVideoLibrary();
+
         if (selectedVideoIds.length === 0) {
             alert('Please select at least 1 video checkbox to build your stream playlist.');
             return;
@@ -461,12 +523,25 @@ document.addEventListener('DOMContentLoaded', () => {
         statusPollInterval = setInterval(async () => {
             try {
                 const res = await fetch(`${backendUrl}/api/stream/status`);
-                if (res.ok) {
-                    const status = await res.json();
-                    updateUIWithStatus(status);
+                if (!res.ok) {
+                    if (backendConnStatus) {
+                        backendConnStatus.className = 'conn-status-badge disconnected';
+                        backendConnStatus.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> Disconnected';
+                    }
+                    return;
                 }
+                if (backendConnStatus) {
+                    backendConnStatus.className = 'conn-status-badge connected';
+                    backendConnStatus.innerHTML = '<i class="fa-solid fa-circle-check"></i> Connected';
+                }
+
+                const status = await res.json();
+                updateUIWithStatus(status);
             } catch (err) {
-                // Ignore transient network errors
+                if (backendConnStatus) {
+                    backendConnStatus.className = 'conn-status-badge disconnected';
+                    backendConnStatus.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> Disconnected';
+                }
             }
         }, 1500);
     }
