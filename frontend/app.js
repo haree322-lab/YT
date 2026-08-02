@@ -57,7 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnGotIt = document.getElementById('btnGotIt');
 
     // --- State Variables ---
-    let backendUrl = localStorage.getItem('renderBackendUrl') || 'http://129.159.224.103';
+    let backendUrl = localStorage.getItem('renderBackendUrl') || 'https://service-name-j6ofxq.bunnyenv.com';
     backendUrl = backendUrl.replace(/\/+$/, '');
     if (!backendUrl.startsWith('http')) backendUrl = 'http://' + backendUrl;
 
