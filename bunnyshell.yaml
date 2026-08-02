@@ -23,6 +23,6 @@ components:
                 CORS_ORIGIN: '*'
         hosts:
             -
-                hostname: 'yt-{{ env.unique_id }}.{{ env.base_domain }}'
+                hostname: '{{ env.base_domain }}'
                 path: /
                 servicePort: 10000
