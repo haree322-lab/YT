@@ -785,7 +785,7 @@ class TelegramBot:
 
     def _validate_stream_opts(self, chat_id, preset: str, mode: str, audio: str) -> bool:
         """Returns True (and sends error) if options are invalid."""
-        allowed_presets = {"720p60", "1080p60", "passthrough"}
+        allowed_presets = {"720p30", "720p60", "1080p30", "1080p60", "passthrough"}
         allowed_modes   = {"single", "loop"}
         allowed_audios  = {"original", "mute", "silent"}
 

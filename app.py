@@ -157,51 +157,91 @@ class StreamManager:
             cmd.extend(["-i", str(self.concat_file_path)])
 
             cmd.extend([
+                "-threads", "0",
                 "-flvflags", "no_duration_filesize",
-                "-max_muxing_queue_size", "1024"
+                "-max_muxing_queue_size", "2048"
             ])
 
             if preset == "1080p60":
                 cmd.extend([
                     "-c:v", "libx264",
-                    "-preset", "veryfast",
-                    "-b:v", "6000k",
-                    "-maxrate", "6000k",
-                    "-bufsize", "12000k",
+                    "-preset", "ultrafast",
+                    "-tune", "zerolatency",
+                    "-b:v", "5000k",
+                    "-maxrate", "5000k",
+                    "-bufsize", "10000k",
                     "-vf", "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2",
                     "-r", "60",
                     "-g", "120",
+                    "-keyint_min", "120",
+                    "-sc_threshold", "0",
+                    "-pix_fmt", "yuv420p"
+                ])
+            elif preset == "1080p30":
+                cmd.extend([
+                    "-c:v", "libx264",
+                    "-preset", "superfast",
+                    "-tune", "zerolatency",
+                    "-b:v", "4000k",
+                    "-maxrate", "4000k",
+                    "-bufsize", "8000k",
+                    "-vf", "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2",
+                    "-r", "30",
+                    "-g", "60",
+                    "-keyint_min", "60",
+                    "-sc_threshold", "0",
+                    "-pix_fmt", "yuv420p"
+                ])
+            elif preset == "720p60":
+                cmd.extend([
+                    "-c:v", "libx264",
+                    "-preset", "superfast",
+                    "-tune", "zerolatency",
+                    "-b:v", "3500k",
+                    "-maxrate", "3500k",
+                    "-bufsize", "7000k",
+                    "-vf", "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2",
+                    "-r", "60",
+                    "-g", "120",
+                    "-keyint_min", "120",
+                    "-sc_threshold", "0",
                     "-pix_fmt", "yuv420p"
                 ])
             elif preset == "passthrough":
                 cmd.extend([
                     "-c:v", "copy"
                 ])
-            else: # Default 720p60
+            else: # Default 720p30 (Recommended for Cloud / Low CPU)
                 cmd.extend([
                     "-c:v", "libx264",
-                    "-preset", "veryfast",
-                    "-b:v", "4000k",
-                    "-maxrate", "4000k",
-                    "-bufsize", "8000k",
+                    "-preset", "superfast",
+                    "-tune", "zerolatency",
+                    "-b:v", "2500k",
+                    "-maxrate", "2500k",
+                    "-bufsize", "5000k",
                     "-vf", "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2",
-                    "-r", "60",
-                    "-g", "120",
+                    "-r", "30",
+                    "-g", "60",
+                    "-keyint_min", "60",
+                    "-sc_threshold", "0",
                     "-pix_fmt", "yuv420p"
                 ])
 
-            if audio_option == "mute":
+            if preset == "passthrough" and audio_option == "original":
+                cmd.extend(["-c:a", "copy"])
+            elif audio_option == "mute":
                 cmd.extend(["-an"])
             elif audio_option == "silent":
                 cmd.extend([
                     "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
-                    "-c:a", "aac", "-b:a", "128k", "-ar", "44100"
+                    "-c:a", "aac", "-b:a", "128k", "-ar", "44100", "-ac", "2"
                 ])
             else:
                 cmd.extend([
                     "-c:a", "aac",
                     "-b:a", "128k",
-                    "-ar", "44100"
+                    "-ar", "44100",
+                    "-ac", "2"
                 ])
 
             cmd.extend([
