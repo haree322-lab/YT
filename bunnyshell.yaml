@@ -26,3 +26,4 @@ components:
                 hostname: 'yt-backend-{{env.base_domain}}'
                 path: /
                 servicePort: 10000
+                public: true
