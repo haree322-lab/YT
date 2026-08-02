@@ -141,14 +141,15 @@ class StreamManager:
                     safe_path_str = str(Path(vpath).resolve()).replace('\\', '/')
                     f.write(f"file '{safe_path_str}'\n")
 
-            rtmps_url = f"rtmps://a.rtmp.youtube.com:443/live2/{stream_key_clean}"
+            rtmp_url = f"rtmp://a.rtmp.youtube.com/live2/{stream_key_clean}"
 
             cmd = [
                 FFMPEG_PATH,
+                "-loglevel", "info",
+                "-fflags", "+genpts+discardcorrupt",
                 "-re",
                 "-f", "concat",
-                "-safe", "0",
-                "-loglevel", "info"
+                "-safe", "0"
             ]
 
             if mode == "loop":
@@ -158,8 +159,9 @@ class StreamManager:
 
             cmd.extend([
                 "-threads", "0",
+                "-avoid_negative_ts", "make_zero",
                 "-flvflags", "no_duration_filesize",
-                "-max_muxing_queue_size", "2048"
+                "-max_muxing_queue_size", "4096"
             ])
 
             if preset == "1080p60":
@@ -167,11 +169,12 @@ class StreamManager:
                     "-c:v", "libx264",
                     "-preset", "ultrafast",
                     "-tune", "zerolatency",
-                    "-b:v", "5000k",
-                    "-maxrate", "5000k",
-                    "-bufsize", "10000k",
+                    "-b:v", "4500k",
+                    "-maxrate", "4500k",
+                    "-bufsize", "9000k",
                     "-vf", "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2",
                     "-r", "60",
+                    "-fps_mode", "cfr",
                     "-g", "120",
                     "-keyint_min", "120",
                     "-sc_threshold", "0",
@@ -180,13 +183,14 @@ class StreamManager:
             elif preset == "1080p30":
                 cmd.extend([
                     "-c:v", "libx264",
-                    "-preset", "superfast",
+                    "-preset", "ultrafast",
                     "-tune", "zerolatency",
-                    "-b:v", "4000k",
-                    "-maxrate", "4000k",
-                    "-bufsize", "8000k",
+                    "-b:v", "3500k",
+                    "-maxrate", "3500k",
+                    "-bufsize", "7000k",
                     "-vf", "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2",
                     "-r", "30",
+                    "-fps_mode", "cfr",
                     "-g", "60",
                     "-keyint_min", "60",
                     "-sc_threshold", "0",
@@ -195,13 +199,14 @@ class StreamManager:
             elif preset == "720p60":
                 cmd.extend([
                     "-c:v", "libx264",
-                    "-preset", "superfast",
+                    "-preset", "ultrafast",
                     "-tune", "zerolatency",
-                    "-b:v", "3500k",
-                    "-maxrate", "3500k",
-                    "-bufsize", "7000k",
+                    "-b:v", "3000k",
+                    "-maxrate", "3000k",
+                    "-bufsize", "6000k",
                     "-vf", "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2",
                     "-r", "60",
+                    "-fps_mode", "cfr",
                     "-g", "120",
                     "-keyint_min", "120",
                     "-sc_threshold", "0",
@@ -211,16 +216,17 @@ class StreamManager:
                 cmd.extend([
                     "-c:v", "copy"
                 ])
-            else: # Default 720p30 (Recommended for Cloud / Low CPU)
+            else: # Default 720p30 (Recommended for smooth cloud streaming)
                 cmd.extend([
                     "-c:v", "libx264",
-                    "-preset", "superfast",
+                    "-preset", "ultrafast",
                     "-tune", "zerolatency",
-                    "-b:v", "2500k",
-                    "-maxrate", "2500k",
-                    "-bufsize", "5000k",
+                    "-b:v", "2000k",
+                    "-maxrate", "2000k",
+                    "-bufsize", "4000k",
                     "-vf", "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2",
                     "-r", "30",
+                    "-fps_mode", "cfr",
                     "-g", "60",
                     "-keyint_min", "60",
                     "-sc_threshold", "0",
@@ -241,12 +247,13 @@ class StreamManager:
                     "-c:a", "aac",
                     "-b:a", "128k",
                     "-ar", "44100",
-                    "-ac", "2"
+                    "-ac", "2",
+                    "-af", "aresample=async=1:first_pts=0"
                 ])
 
             cmd.extend([
                 "-f", "flv",
-                rtmps_url
+                rtmp_url
             ])
 
             self.add_log(f"Starting YouTube Live Playlist Stream [{mode.upper()} MODE]...")
