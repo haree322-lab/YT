@@ -21,3 +21,9 @@ components:
                 PORT: '10000'
                 PYTHONUNBUFFERED: '1'
                 CORS_ORIGIN: '*'
+        hosts:
+            -
+                hostname: 'yt-${env.unique}.bunnyenv.com'
+                path: /
+                servicePort: 10000
+                public: true

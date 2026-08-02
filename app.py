@@ -12,7 +12,7 @@ from pathlib import Path
 from flask import Flask, request, jsonify, Response, send_from_directory, render_template
 from flask_cors import CORS
 
-app = Flask(__name__, static_folder='static', template_folder='.')
+app = Flask(__name__, static_folder='frontend', static_url_path='', template_folder='frontend')
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max per chunk payload
 
 # Enable CORS for cross-origin frontend (Cloudflare Pages)
@@ -330,7 +330,7 @@ def index():
 
 @app.route('/static/<path:filename>')
 def serve_static(filename):
-    return send_from_directory('static', filename)
+    return send_from_directory('frontend', filename)
 
 @app.route('/api/upload/init', methods=['POST'])
 def upload_init():

@@ -57,7 +57,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnGotIt = document.getElementById('btnGotIt');
 
     // --- State Variables ---
-    let backendUrl = localStorage.getItem('renderBackendUrl') || 'https://signature-compliance-occasions-lucky.trycloudflare.com';
+    let backendUrl = localStorage.getItem('renderBackendUrl');
+    if (!backendUrl) {
+        if (window.location.origin && window.location.origin.startsWith('http')) {
+            backendUrl = window.location.origin;
+        } else {
+            backendUrl = 'https://signature-compliance-occasions-lucky.trycloudflare.com';
+        }
+    }
     backendUrl = backendUrl.replace(/\/+$/, '');
     if (!backendUrl.startsWith('http')) backendUrl = 'http://' + backendUrl;
 
