@@ -1,3 +1,5 @@
+import * as BunnySDK from "@bunny.net/edgescript-sdk";
+
 // Bunny.net Edge Scripting entry point
 // This simple standalone script will respond to requests on your edge domain.
 
