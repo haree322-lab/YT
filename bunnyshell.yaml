@@ -21,6 +21,11 @@ components:
                 PORT: '10000'
                 PYTHONUNBUFFERED: '1'
                 CORS_ORIGIN: '*'
+                # Telegram Bot — set real values in BunnyShell Secrets panel
+                TELEGRAM_BOT_TOKEN: ''
+                TELEGRAM_ALLOWED_USERS: ''
+                TELEGRAM_API_ID: ''
+                TELEGRAM_API_HASH: ''
         hosts:
             -
                 hostname: 'yt-${env.unique}.bunnyenv.com'

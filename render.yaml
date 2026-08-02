@@ -10,3 +10,12 @@ services:
         value: "1"
       - key: CORS_ORIGIN
         value: "*"
+      # --- Telegram Bot (set values in Render dashboard, not here) ---
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_ALLOWED_USERS
+        sync: false
+      - key: TELEGRAM_API_ID
+        sync: false
+      - key: TELEGRAM_API_HASH
+        sync: false

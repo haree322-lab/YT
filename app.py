@@ -19,6 +19,20 @@ app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max per chunk payloa
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 BASE_DIR = Path(__file__).resolve().parent
+
+# Load local .env file if present
+env_file = BASE_DIR / '.env'
+if env_file.exists():
+    try:
+        with open(env_file, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#') and '=' in line:
+                    k, v = line.split('=', 1)
+                    os.environ.setdefault(k.strip(), v.strip())
+    except Exception:
+        pass
+
 UPLOADS_DIR = BASE_DIR / 'uploads'
 TEMP_DIR = UPLOADS_DIR / 'temp'
 UPLOADS_DIR.mkdir(exist_ok=True)
@@ -293,6 +307,15 @@ class StreamManager:
         }
 
 stream_mgr = StreamManager()
+
+# Initialize and start Telegram Bot if token is configured
+if os.environ.get('TELEGRAM_BOT_TOKEN'):
+    try:
+        from telegram_bot import TelegramBot
+        telegram_bot_instance = TelegramBot(stream_mgr, UPLOADS_DIR)
+        telegram_bot_instance.start()
+    except Exception as e:
+        print(f"[Telegram Bot] Failed to initialize: {e}")
 
 def mask_stream_key(key):
     if len(key) <= 8:
