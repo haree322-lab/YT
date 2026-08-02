@@ -147,7 +147,6 @@ class StreamManager:
                 FFMPEG_PATH,
                 "-loglevel", "info",
                 "-fflags", "+genpts+discardcorrupt",
-                "-re",
                 "-f", "concat",
                 "-safe", "0"
             ]
